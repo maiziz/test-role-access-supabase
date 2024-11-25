@@ -1,6 +1,20 @@
 import { createClient } from '@supabase/supabase-js';
+import { Database } from './database.types';
 
-const supabaseUrl = 'https://dyunvocxssjwavliqjsl.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR5dW52b2N4c3Nqd2F2bGlxanNsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzI1MTQxMjgsImV4cCI6MjA0ODA5MDEyOH0.22_2YTGbtoL8ShioAmQZ00ELx8fknGKThDkaGo-CZJc';
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-export const supabase = createClient(supabaseUrl, supabaseKey);
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error('Missing Supabase environment variables');
+}
+
+export const supabase = createClient<Database>(supabaseUrl, supabaseKey, {
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true
+  },
+  db: {
+    schema: 'public'
+  }
+});

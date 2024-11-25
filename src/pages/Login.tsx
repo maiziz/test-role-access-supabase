@@ -2,55 +2,34 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LogIn, School } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
-import { supabase } from '../lib/supabase';
 
 export function Login() {
   const navigate = useNavigate();
-  const signIn = useAuthStore((state) => state.signIn);
+  const { signIn, signUp } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<'teacher' | 'student'>('student');
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+    setIsLoading(true);
+
     try {
-      // First, create a new user if they don't exist
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-        email,
-        password,
-      });
-
-      if (signUpError && signUpError.message !== 'User already registered') {
-        throw signUpError;
+      if (isSignUp) {
+        await signUp(email, password, role);
+      } else {
+        await signIn(email, password, role);
       }
-
-      // Then sign in
-      await signIn(email, password, role);
       navigate(role === 'teacher' ? '/teacher' : '/student');
     } catch (err) {
-      setError('Authentication failed. Please try again.');
       console.error('Auth error:', err);
-    }
-  };
-
-  // Test database connection
-  const testConnection = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('user_roles')
-        .select('*')
-        .limit(1);
-      
-      if (error) {
-        console.error('Database error:', error);
-        setError('Database connection failed');
-      } else {
-        console.log('Database connected successfully:', data);
-      }
-    } catch (err) {
-      console.error('Connection test error:', err);
-      setError('Database connection failed');
+      setError(err instanceof Error ? err.message : 'Authentication failed. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -59,14 +38,12 @@ export function Login() {
       <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-8">
         <div className="flex flex-col items-center mb-8">
           <School className="h-12 w-12 text-indigo-600 mb-2" />
-          <h1 className="text-2xl font-bold text-gray-900">Welcome Back</h1>
-          <p className="text-gray-600">Sign in to your account</p>
-          <button
-            onClick={testConnection}
-            className="mt-2 text-sm text-indigo-600 hover:text-indigo-500"
-          >
-            Test Connection
-          </button>
+          <h1 className="text-2xl font-bold text-gray-900">
+            {isSignUp ? 'Create Account' : 'Welcome Back'}
+          </h1>
+          <p className="text-gray-600">
+            {isSignUp ? 'Sign up to get started' : 'Sign in to your account'}
+          </p>
         </div>
 
         {error && (
@@ -81,9 +58,10 @@ export function Login() {
             <input
               type="email"
               required
-              className="mt-1 block w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+              disabled={isLoading}
             />
           </div>
 
@@ -92,18 +70,20 @@ export function Login() {
             <input
               type="password"
               required
-              className="mt-1 block w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+              disabled={isLoading}
             />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700">Role</label>
             <select
-              className="mt-1 block w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
               value={role}
               onChange={(e) => setRole(e.target.value as 'teacher' | 'student')}
+              className="mt-1 block w-full pl-3 pr-10 py-2 text-base border border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 rounded-md"
+              disabled={isLoading}
             >
               <option value="student">Student</option>
               <option value="teacher">Teacher</option>
@@ -112,12 +92,31 @@ export function Login() {
 
           <button
             type="submit"
-            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            disabled={isLoading}
+            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <LogIn className="h-5 w-5 mr-2" />
-            Sign In
+            {isLoading ? (
+              <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <>
+                <LogIn className="w-5 h-5 mr-2" />
+                {isSignUp ? 'Sign Up' : 'Sign In'}
+              </>
+            )}
           </button>
         </form>
+
+        <div className="mt-6 text-center">
+          <button
+            onClick={() => setIsSignUp(!isSignUp)}
+            className="text-sm text-indigo-600 hover:text-indigo-500"
+            disabled={isLoading}
+          >
+            {isSignUp
+              ? 'Already have an account? Sign in'
+              : "Don't have an account? Sign up"}
+          </button>
+        </div>
       </div>
     </div>
   );
