@@ -7,7 +7,12 @@ export function TeacherDashboard() {
   const { signOut, user } = useAuthStore();
   const { courses, loading, error, fetchTeacherCourses, createCourse } = useCourseStore();
   const [showNewCourseModal, setShowNewCourseModal] = useState(false);
-  const [newCourse, setNewCourse] = useState({ title: '', description: '' });
+  const [newCourse, setNewCourse] = useState({
+    title: '',
+    description: '',
+    start_date: '',
+    end_date: ''
+  });
 
   useEffect(() => {
     if (user) {
@@ -18,8 +23,14 @@ export function TeacherDashboard() {
   const handleCreateCourse = async (e: React.FormEvent) => {
     e.preventDefault();
     if (user) {
-      await createCourse(newCourse.title, newCourse.description, user.id);
-      setNewCourse({ title: '', description: '' });
+      await createCourse({
+        title: newCourse.title,
+        description: newCourse.description,
+        teacher_id: user.id,
+        start_date: newCourse.start_date || null,
+        end_date: newCourse.end_date || null
+      });
+      setNewCourse({ title: '', description: '', start_date: '', end_date: '' });
       setShowNewCourseModal(false);
     }
   };
@@ -100,13 +111,32 @@ export function TeacherDashboard() {
                   courses.map((course) => (
                     <li key={course.id} className="p-4">
                       <div className="flex items-center justify-between">
-                        <div>
+                        <div className="flex-1">
                           <h4 className="text-lg font-medium text-gray-900">{course.title}</h4>
                           <p className="mt-1 text-sm text-gray-500">{course.description}</p>
+                          {(course.start_date || course.end_date) && (
+                            <div className="mt-2 flex items-center space-x-4 text-sm text-gray-500">
+                              {course.start_date && (
+                                <span>
+                                  Starts: {new Date(course.start_date).toLocaleDateString()}
+                                </span>
+                              )}
+                              {course.end_date && (
+                                <span>
+                                  Ends: {new Date(course.end_date).toLocaleDateString()}
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
-                        <span className="text-sm text-gray-500">
-                          {new Date(course.created_at).toLocaleDateString()}
-                        </span>
+                        <div className="ml-4 flex flex-col items-end">
+                          <span className="text-sm text-gray-500">
+                            Created: {new Date(course.created_at).toLocaleDateString()}
+                          </span>
+                          <span className="mt-1 text-xs text-gray-400">
+                            Last updated: {new Date(course.updated_at).toLocaleDateString()}
+                          </span>
+                        </div>
                       </div>
                     </li>
                   ))
@@ -153,6 +183,32 @@ export function TeacherDashboard() {
                       rows={3}
                       className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                     />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <label htmlFor="start_date" className="block text-sm font-medium text-gray-700">
+                        Start Date
+                      </label>
+                      <input
+                        type="date"
+                        id="start_date"
+                        value={newCourse.start_date}
+                        onChange={(e) => setNewCourse({ ...newCourse, start_date: e.target.value })}
+                        className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="end_date" className="block text-sm font-medium text-gray-700">
+                        End Date
+                      </label>
+                      <input
+                        type="date"
+                        id="end_date"
+                        value={newCourse.end_date}
+                        onChange={(e) => setNewCourse({ ...newCourse, end_date: e.target.value })}
+                        className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                      />
+                    </div>
                   </div>
                   <div className="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3 sm:grid-flow-row-dense">
                     <button

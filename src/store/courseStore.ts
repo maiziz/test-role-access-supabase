@@ -5,13 +5,16 @@ interface Course {
   id: string;
   title: string;
   description: string;
-  created_by: string;
+  teacher_id: string;
+  start_date: string | null;
+  end_date: string | null;
   created_at: string;
+  updated_at: string;
 }
 
 interface Enrollment {
   id: string;
-  user_id: string;
+  student_id: string;
   course_id: string;
   enrolled_at: string;
   course: Course;
@@ -22,17 +25,37 @@ interface CourseState {
   enrollments: Enrollment[];
   loading: boolean;
   error: string | null;
+  fetchAllCourses: () => Promise<void>;
   fetchTeacherCourses: (teacherId: string) => Promise<void>;
   fetchStudentEnrollments: (studentId: string) => Promise<void>;
-  createCourse: (title: string, description: string, teacherId: string) => Promise<void>;
+  createCourse: (course: Omit<Course, 'id' | 'created_at' | 'updated_at'>) => Promise<void>;
   enrollInCourse: (studentId: string, courseId: string) => Promise<void>;
 }
 
-export const useCourseStore = create<CourseState>((set) => ({
+export const useCourseStore = create<CourseState>((set, get) => ({
   courses: [],
   enrollments: [],
   loading: false,
   error: null,
+
+  fetchAllCourses: async () => {
+    set({ loading: true, error: null });
+    try {
+      const { data, error } = await supabase
+        .from('courses')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      set({ courses: data || [], loading: false });
+    } catch (error) {
+      console.error('Error fetching courses:', error);
+      set({ 
+        error: error instanceof Error ? error.message : 'Failed to fetch courses',
+        loading: false 
+      });
+    }
+  },
 
   fetchTeacherCourses: async (teacherId: string) => {
     set({ loading: true, error: null });
@@ -40,7 +63,8 @@ export const useCourseStore = create<CourseState>((set) => ({
       const { data, error } = await supabase
         .from('courses')
         .select('*')
-        .eq('created_by', teacherId);
+        .eq('teacher_id', teacherId)
+        .order('created_at', { ascending: false });
 
       if (error) throw error;
       set({ courses: data || [], loading: false });
@@ -56,16 +80,30 @@ export const useCourseStore = create<CourseState>((set) => ({
   fetchStudentEnrollments: async (studentId: string) => {
     set({ loading: true, error: null });
     try {
-      const { data, error } = await supabase
+      // First fetch all courses for the enrollment modal
+      const { data: coursesData, error: coursesError } = await supabase
+        .from('courses')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (coursesError) throw coursesError;
+      set({ courses: coursesData || [] });
+
+      // Then fetch student enrollments
+      const { data: enrollmentsData, error: enrollmentsError } = await supabase
         .from('enrollments')
         .select(`
           *,
           course:courses(*)
         `)
-        .eq('user_id', studentId);
+        .eq('student_id', studentId)
+        .order('enrolled_at', { ascending: false });
 
-      if (error) throw error;
-      set({ enrollments: data || [], loading: false });
+      if (enrollmentsError) throw enrollmentsError;
+      set({ 
+        enrollments: enrollmentsData || [], 
+        loading: false 
+      });
     } catch (error) {
       console.error('Error fetching student enrollments:', error);
       set({
@@ -75,23 +113,30 @@ export const useCourseStore = create<CourseState>((set) => ({
     }
   },
 
-  createCourse: async (title: string, description: string, teacherId: string) => {
+  createCourse: async (course) => {
     set({ loading: true, error: null });
     try {
-      const { error } = await supabase
+      const { error: insertError } = await supabase
         .from('courses')
-        .insert([{ title, description, created_by: teacherId }]);
+        .insert([{
+          title: course.title,
+          description: course.description,
+          teacher_id: course.teacher_id,
+          start_date: course.start_date,
+          end_date: course.end_date
+        }]);
 
-      if (error) throw error;
+      if (insertError) throw insertError;
 
       // Refresh the courses list
-      const { data: courses, error: fetchError } = await supabase
+      const { data: coursesData, error: fetchError } = await supabase
         .from('courses')
         .select('*')
-        .eq('created_by', teacherId);
+        .eq('teacher_id', course.teacher_id)
+        .order('created_at', { ascending: false });
 
       if (fetchError) throw fetchError;
-      set({ courses: courses || [], loading: false });
+      set({ courses: coursesData || [], loading: false });
     } catch (error) {
       console.error('Error creating course:', error);
       set({
@@ -104,23 +149,27 @@ export const useCourseStore = create<CourseState>((set) => ({
   enrollInCourse: async (studentId: string, courseId: string) => {
     set({ loading: true, error: null });
     try {
-      const { error } = await supabase
+      const { error: enrollError } = await supabase
         .from('enrollments')
-        .insert([{ user_id: studentId, course_id: courseId }]);
+        .insert([{ 
+          student_id: studentId, 
+          course_id: courseId 
+        }]);
 
-      if (error) throw error;
+      if (enrollError) throw enrollError;
 
       // Refresh the enrollments list
-      const { data: enrollments, error: fetchError } = await supabase
+      const { data: enrollmentsData, error: fetchError } = await supabase
         .from('enrollments')
         .select(`
           *,
           course:courses(*)
         `)
-        .eq('user_id', studentId);
+        .eq('student_id', studentId)
+        .order('enrolled_at', { ascending: false });
 
       if (fetchError) throw fetchError;
-      set({ enrollments: enrollments || [], loading: false });
+      set({ enrollments: enrollmentsData || [], loading: false });
     } catch (error) {
       console.error('Error enrolling in course:', error);
       set({
